@@ -3,6 +3,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from .unet import conv3x3, conv1x1, upconv2x2
+
+
 class DownConv(nn.Module):
     """
     A helper Module that performs 2 convolutions and 2x2 convolution with stride 2 for downsampling.
@@ -29,7 +31,7 @@ class DownConv(nn.Module):
         if self.pooling:
             x = self.pool(x)
         return x, before_pool
-    
+
 
 class UpConv(nn.Module):
     """
@@ -71,8 +73,8 @@ class UpConv(nn.Module):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         return x
-    
-    
+
+
 class Encoder(nn.Module):
     def __init__(self,
                  in_channels=1,
@@ -109,7 +111,7 @@ class Encoder(nn.Module):
         logvar = self.convlogvar(x)
         return mu, logvar
 
-    
+
 class Decoder(nn.Module):
     def __init__(self,
                  in_channels=1,
@@ -145,8 +147,7 @@ class Decoder(nn.Module):
             x, _ = module(x)
 
         x = self.conv_final(x)
-        #return self.blur(self.pad(x))
-        return x
+        return self.blur(self.pad(x))
     
     
 class VAE(nn.Module):
@@ -181,7 +182,7 @@ class VAE(nn.Module):
                                z_dim=self.z_dim)
 
         self.reset_params()
-        self.cuda()
+
     @staticmethod
     def weight_init(m):
         if isinstance(m, nn.Conv2d):
@@ -211,7 +212,6 @@ class VAE(nn.Module):
         mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
         return self.decoder(z), mu, logvar
-
 
 
 class MultiVAE(nn.Module):
@@ -245,7 +245,7 @@ class MultiVAE(nn.Module):
         for i in range(depth - 1):
             ins = outs
             outs = ins // 2
-            up_conv = UpConv(ins, outs, up_mode='transpose',
+            up_conv = UpConv(ins, outs, up_mode='pixelshuffle',
                              merge_mode='concat', blur=blur)
             self.up_convs.append(up_conv)
             self.vaes.append(VAE(in_channels=outs,
@@ -261,9 +261,9 @@ class MultiVAE(nn.Module):
         self.conv_final = conv1x1(outs, self.num_classes)
         self.pad = nn.ReplicationPad2d((1, 0, 1, 0))
         self.blur = nn.AvgPool2d(2, stride=1)
+
         self.reset_params()
         self.cuda()
-
     @staticmethod
     def weight_init(m):
         if isinstance(m, nn.Conv2d):
@@ -294,6 +294,6 @@ class MultiVAE(nn.Module):
             logvars.append(logvar)
 
         x = self.conv_final(x)
-        #x = self.blur(self.pad(x))
+        x = self.blur(self.pad(x))
+
         return x, mus, logvars
-     
